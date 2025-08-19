@@ -1,0 +1,28 @@
+version: "3.9"
+services:
+  postgres: 
+    image: postgres:15
+    container_name: postgres-target
+    environment:
+      POSTGRES_USER: pguser
+      POSTGRES_PASSWORD: pgpass
+      POSTGRES_DB: targetdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  
+  firebird:
+    image: jacobalberty/firebird:latest
+    container_name: firebird-source
+    environment:
+      ISC_USER: iscuser
+      ISC_PASSWORD: iscpass
+    ports:
+    - "3050:3050"
+    volumes:
+      - fbdata:/firebird/data
+    
+volumes:
+  pgdata:
+  fbdata:
