@@ -1,10 +1,10 @@
-import './App.css'
+import UploadPage from './pages/UploadPage'
 
 function App() {
 
   return (
     <>
-      <h1>App Page</h1>
+      <UploadPage/>
     </>
   )
 }
