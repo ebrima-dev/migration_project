@@ -1,11 +1,13 @@
 import os
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
 import shutil
+from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
 
-# Allow frontend on localhose:5173 or 3000
+# Allow frontend on localhost:5173 or 3000
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -17,12 +19,16 @@ app.add_middleware(
 DATA_DIR = "data/samples"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-@app.post("/ingest/")
+@app.post("/upload-file/")
 async def ingest(file: UploadFile = File(...)):
     file_path = os.path.join(DATA_DIR, file.filename)
+
+    # Save the uploaded file
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-    return {"filename": file.filename, "status": "saved", "path": file_path}
+    
+    return JSONResponse(content={"filename": file.filename, "location": file_path})
+    
 
 @app.get("/profile/")
 async def profile():
