@@ -19,7 +19,7 @@ export default function UploadPage() {
     formData.append("file", file);
 
     try {
-        const res = await fetch("http://localhost:8000/ingest/", {
+        const res = await fetch("http://localhost:8000/upload-file/", {
             method: "POST",
             body: formData,
         });
