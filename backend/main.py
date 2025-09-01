@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
 
-### Create App ###
+# Create FastAPI App
 app = FastAPI()
 
 # Allow frontend on localhost:5173 or 3000
@@ -22,11 +22,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-### Generate Directories ###
+# Generate Directories 
 DATA_DIR = "data/samples"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-### Helper Functions ###
+# ----------------------------------------------------
+# Helper Functions 
+# ----------------------------------------------------
 
 # Detect delimiter by sampling the file
 def detect_delimiter(sample: str):
@@ -85,8 +87,72 @@ def normalize_delimiters(raw: str):
 
     return normalized, found
 
+# -------------------------------------------------------
+# Parsing Layer
+# -------------------------------------------------------
+def robust_read_csv(file_bytes):
+    try:
+        df = pd.read_csv(io.BytesIO(file_bytes), sep=None, engine="python")
+    except Exception:
+        df = pd.read_csv(io.BytesIO(file_bytes), sep=r"\s+", engine="python")
+    return df
 
-### Create Endpoints ###
+# -------------------------------------------------------
+# Type Inference
+# -------------------------------------------------------
+def infer_column_types(df):
+    inferred_types = {}
+    for col in df.columns:
+        try:
+            pd.to_datetime(df[col])
+            inferred_types[col] = "date"
+        except Exception:
+            if pd.api.types.is_Numeric_dtype(df[col]):
+                inferred_types[col] = "numeric"
+            elif df[col].astype(str).str.match(r'^[A-Xa-z ]+$').mean() > 0.7:
+                inferred_types[col] = "text"
+            else:
+                inferred_types[col] = "categorical"
+    return inferred_types
+
+# -------------------------------------------------------
+# Feature Extraction
+# -------------------------------------------------------
+
+def extract_features(df):
+    features = {}
+    for col in df.columns:
+        col_data = df[col].astype(str).fillna("")
+        features[col] = {
+            "unique_ratio": df[col].nunique() / len(df),
+            "avg_len": col_data.str.len().mean(),
+            "pct_numeric": col_data.str.match(r'^\d+(\.\d+)?$').mean(),
+            "pct_date": col_data.str.match(r'^\d{4}-\d{2}-\d{2}$').mean(),
+            "sample_values": col_data.head(3).tolist()
+        }
+    return features
+
+
+# -------------------------------------------------------
+# Predicition Layer (Rule-based for now)
+# Later: Replace with ML model
+# -------------------------------------------------------
+def predict_column_names(features):
+    predictions = {}
+    for col, feats in features.items():
+        if feats["pct_date"] > 0.5:
+            predictions[col] = {"predicted": "date", "confidence": 0.9}
+        elif feats["pct_numeric"] > 0.8 and feats["unique_ratio"] > 0.5:
+            predictions[col] = {"predicted": "id", "confidence": 0.8}
+        elif feats["avg_len"] > 10:
+            predictions[col] = {"predicted": "text_fields", "confidence": 0.7}
+        else:
+            predictions[col] = {"predicted": "unknown", "confidence": 0.4}
+    return predictions
+
+# -------------------------------------------------------
+#  Create Endpoints
+# -------------------------------------------------------
 @app.post("/upload-file/")
 async def ingest(file: UploadFile = File(...)):
     file_path = os.path.join(DATA_DIR, file.filename)
@@ -131,6 +197,25 @@ async def validate_csv(file: UploadFile = File(...)):
         "issues_found": len(issues),
         "issues": issues[:50] # limit output
     })
+
+@app.post("/predict-schema/")
+async def predict_schema(file: UploadFile = File(...)):
+    file_bytes = await file.read()
+    df = robust_read_csv(file_bytes)
+    features = extract_features(df)
+    predictions = predict_column_names(features)
+
+    return {
+        "columns": [
+            {
+                "column": col,
+                "features": features[col],
+                "prediction": predictions[col]["predicted"],
+                "confidence": predictions[col]["confidence"]
+            }
+            for col in df.columns
+        ]
+    }
 
 @app.get("/profile/")
 async def profile():
