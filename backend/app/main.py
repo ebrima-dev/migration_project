@@ -3,11 +3,12 @@ import shutil
 import pandas as pd
 import chardet
 import csv
-import io
+import io, joblib, json, os
 import re
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 
 # Create FastAPI App
@@ -21,6 +22,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Load trained model
+model, feature_names = joblib.load("column_predictor.pkl")
+
+# File to store corrections 
+FEEDBACK_FILE = "feedback.jsonl"
+
+class FeedbackItem(BaseModel):
+    column: str
+    predicted: str
+    corrected: str
+    sample_values: list
+
 
 # Generate Directories 
 DATA_DIR = "data/samples"
@@ -119,6 +133,10 @@ def infer_column_types(df):
 # Feature Extraction
 # -------------------------------------------------------
 
+"""
+We have  two seperate extract features fucnctions curently
+One here and one in train_model.py
+"""
 def extract_features(df):
     features = {}
     for col in df.columns:
@@ -202,20 +220,31 @@ async def validate_csv(file: UploadFile = File(...)):
 async def predict_schema(file: UploadFile = File(...)):
     file_bytes = await file.read()
     df = robust_read_csv(file_bytes)
+
     features = extract_features(df)
-    predictions = predict_column_names(features)
+    X = pd.DataFrame([features[col] for col in df.columns], columns=feature_names)
+    
+    preds = model.predict(X)
+    probs = model.predict_proba(X)
 
     return {
         "columns": [
             {
                 "column": col,
-                "features": features[col],
-                "prediction": predictions[col]["predicted"],
-                "confidence": predictions[col]["confidence"]
+                "prediction": preds[i],
+                "confidence": float(max(prob[i]))
             }
-            for col in df.columns
+            for i, col in enumerate(df.columns)
         ]
     }
+
+@app.psot("/submit-feedback/")
+async def submit_feedback(feedback: list[FeedbackItem]):
+    with open(FEEDBACK_FILE, "a") as f:
+        for item in feedback:
+            f.write(json.dumps(item.dict()) + "\n")
+    return {"status": "success", "received": len(feedback)}
+
 
 @app.get("/profile/")
 async def profile():
