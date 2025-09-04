@@ -1,4 +1,3 @@
-version: "3.9"
 services:
   postgres: 
     image: postgres:15
@@ -13,16 +12,15 @@ services:
       - pgdata:/var/lib/postgresql/data
   
   firebird:
-    image: jacobalberty/firebird:latest
-    container_name: firebird-source
-    environment:
-      ISC_USER: iscuser
-      ISC_PASSWORD: iscpass
+    image: jacobalberty/firebird:3.0
+    container_name: firebird
     ports:
-    - "3050:3050"
+      - "3050:3050"
+    environment:
+      ISC_PASSWORD: MySecretPassword
     volumes:
-      - fbdata:/firebird/data
-    
+      - ../data/firebird-data:/firebird/data
+
 volumes:
   pgdata:
   fbdata:
