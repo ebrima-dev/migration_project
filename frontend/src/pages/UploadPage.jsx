@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Button, Card, Typography, Box, Container } from "@mui/joy";
+import NavBar from "../components/NavBar";
 
 export default function UploadPage() {
     const [file, setFile] = useState(null); 
@@ -36,6 +37,7 @@ export default function UploadPage() {
 
 return (
     <Container sx={{display: 'flex', flexDirection: 'column', justifyContent: 'center'}}>
+    <NavBar />
     <Typography level="body-md" sx={{margin: 8}}>
         Here you can upload the msesy csv files and it will 
         be parsed and return a clean CSV.
